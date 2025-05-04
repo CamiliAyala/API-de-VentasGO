@@ -74,7 +74,7 @@ func (s *Service) CreateSale(sale *Sale) error {
 	if u == nil {
 		return ErrSaleNotFound
 	}
-	if sale.Amount == 0.0 {
+	if sale.Amount <= 0.0 {
 		return ErrInvalidInput
 	}
 
