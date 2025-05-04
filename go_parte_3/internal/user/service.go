@@ -2,6 +2,7 @@ package user
 
 import (
 	"errors"
+	"math/rand"
 	"regexp"
 	"time"
 
@@ -10,10 +11,12 @@ import (
 )
 
 var (
-	letterRegex = regexp.MustCompile(`^[A-Za-z]+$`)
-
-	ErrInvalidInput     = errors.New("invalid input")
-	ErrNoFieldsToUpdate = errors.New("no fields to update")
+	letterRegex           = regexp.MustCompile(`^[A-Za-z]+$`)
+	ErrInvalidInput       = errors.New("invalid input")
+	ErrNoFieldsToUpdate   = errors.New("no fields to update")
+	ErrUserNotFound       = errors.New("user not found")
+	ErrSaleNotFound       = errors.New("sale not found")
+	ErrTransactionInvalid = errors.New("transaccion invalida")
 )
 
 // Service provides high-level user management operations on a LocalStorage backend.
@@ -38,10 +41,8 @@ func NewService(storage Storage, logger *zap.Logger) *Service {
 	}
 }
 
-// Create adds a brand-new user to the system.
-// It sets CreatedAt and UpdatedAt to the current time and initializes Version to 1.
-// Returns ErrEmptyID if user.ID is empty.
-func (s *Service) Create(user *User) error {
+// Create de Usuario
+func (s *Service) CreateUser(user *User) error {
 
 	if user.Name == "" || user.Address == "" {
 		return ErrInvalidInput
@@ -60,7 +61,7 @@ func (s *Service) Create(user *User) error {
 	user.Version = 1
 	user.Status = UserStatusActive
 
-	if err := s.storage.Set(user); err != nil {
+	if err := s.storage.SetUser(user); err != nil {
 		s.logger.Error("failed to set user", zap.Error(err), zap.Any("user", user))
 		return err
 	}
@@ -68,66 +69,103 @@ func (s *Service) Create(user *User) error {
 	return nil
 }
 
-// Get retrieves a user by its ID.
-// Returns ErrNotFound if no user exists with the given ID.
-/*func (s *Service) Get(id string) (*User, error) {
-	return s.storage.Read(id)
-}*/
-
-// si el users esta inactivo, no lo devolverá
-func (s *Service) Get(id string) (*User, error) {
-	user, err := s.storage.Read(id)
-	if err != nil {
-		return nil, err
+func (s *Service) CreateSale(sale *Sale) error {
+	u, _ := s.GetUser(sale.UserID)
+	if u == nil {
+		return ErrSaleNotFound
 	}
-	/*if user.Status == UserStatusDeleted {
-		return nil, ErrNotFound
-	}*/
-	return user, nil
+	if sale.Amount == 0.0 {
+		return ErrInvalidInput
+	}
+
+	sale.ID = uuid.NewString()
+	sale.UserID = u.ID
+	statuses := []string{"pending", "approved", "rejected"}
+	sale.Status = statuses[rand.Intn(len(statuses))]
+	now := time.Now()
+	sale.CreatedAt = now
+	sale.UpdatedAt = now
+	sale.Version = 1
+
+	if err := s.storage.SetSale(sale); err != nil {
+		s.logger.Error("failed to set sale", zap.Error(err), zap.Any("sale", sale))
+		return err
+	}
+
+	return nil
 }
 
-// Update modifies an existing user's data.
-// It updates Name, Address, NickName, sets UpdatedAt to now and increments Version.
-// Returns ErrNotFound if the user does not exist, or ErrEmptyID if user.ID is empty.
-/*func (s *Service) Update(id string, user *UpdateFields) (*User, error) {
-	existing, err := s.storage.Read(id)
+// si el users esta inactivo, no lo devolverá
+func (s *Service) GetUser(id string) (*User, error) {
+	user, err := s.storage.ReadUser(id)
 	if err != nil {
 		return nil, err
 	}
-
-	if user.Name != nil {
-		existing.Name = *user.Name
+	if user.Status == UserStatusDeleted {
+		return nil, ErrNotFound
 	}
-
-	if user.Address != nil {
-		existing.Address = *user.Address
-	}
-
-	if user.NickName != nil {
-		existing.NickName = *user.NickName
-	}
-
-	existing.UpdatedAt = time.Now()
-	existing.Version++
-
-	if err := s.storage.Set(existing); err != nil {
+	return user, nil
+}
+func (s *Service) GetSale(id string) (*Sale, error) {
+	sale, err := s.storage.ReadSale(id)
+	if err != nil {
 		return nil, err
 	}
+	return sale, nil
+}
 
-	return existing, nil
-}*/
+func (s *Service) GetSaleByUserAndStatus(userID string, status string) (informe, error) {
+	var resp informe
+	var meta metadata
+	resp.Results = []Sale{}
+
+	// Validar estado si se envía
+	if status != "" && status != "approved" && status != "rejected" && status != "pending" {
+		return resp, ErrInvalidInput
+	}
+
+	salesMap, err := s.storage.ReadAllSales()
+	if err != nil {
+		return resp, err
+	}
+
+	var filteredSales []Sale
+	for _, sale := range salesMap {
+		if sale.UserID != userID {
+			continue
+		}
+		if status == "" || sale.Status == status {
+			filteredSales = append(filteredSales, *sale)
+		}
+	}
+
+	meta.Quantity = len(filteredSales)
+	for _, sale := range filteredSales {
+		switch sale.Status {
+		case "approved":
+			meta.Approved++
+		case "rejected":
+			meta.Rejected++
+		case "pending":
+			meta.Pending++
+		}
+		meta.TotalAmount += sale.Amount
+	}
+
+	resp.Metadata = meta
+	resp.Results = filteredSales
+	return resp, nil
+}
 
 //Update
 //Si no se modifica ningún valor debe arrojar un 400.
-//Los campos deben respetar lo mismo del create.
 
-func (s *Service) Update(id string, updates *UpdateFields) (*User, error) {
-	existing, err := s.storage.Read(id)
+func (s *Service) UpdateUser(id string, updates *UpdateFieldsUser) (*User, error) {
+	existing, err := s.storage.ReadUser(id)
 	if err != nil {
 		return nil, err
 	}
 
-	// Chequear si hay cambios
 	updated := false
 
 	if updates.Name != nil {
@@ -160,7 +198,43 @@ func (s *Service) Update(id string, updates *UpdateFields) (*User, error) {
 	existing.UpdatedAt = time.Now()
 	existing.Version++
 
-	if err := s.storage.Set(existing); err != nil {
+	if err := s.storage.SetUser(existing); err != nil {
+		return nil, err
+	}
+
+	return existing, nil
+}
+
+func (s *Service) UpdateSale(id string, updates *UpdateFieldsSale) (*Sale, error) {
+	existing, err := s.storage.ReadSale(id)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Chequear si hay cambios
+	updated := false
+
+	if existing.Status == "pending" {
+		if updates.Status == "rejected" || updates.Status == "approved" {
+			existing.Status = updates.Status
+			updated = true
+		} else {
+			return nil, ErrInvalidInput
+		}
+	} else {
+		return nil, ErrTransactionInvalid
+	}
+
+	// Si no se modificó nada, lanzar error 400
+	if !updated {
+		return nil, ErrNoFieldsToUpdate
+	}
+
+	existing.UpdatedAt = time.Now()
+	existing.Version++
+
+	if err := s.storage.SetSale(existing); err != nil {
 		return nil, err
 	}
 
@@ -175,7 +249,7 @@ func (s *Service) Update(id string, updates *UpdateFields) (*User, error) {
 
 // Hacer que el borrado sea lógico en vez de físico.
 func (s *Service) Delete(id string) error {
-	user, err := s.storage.Read(id)
+	user, err := s.storage.ReadUser(id)
 	if err != nil {
 		return err
 	}
@@ -184,7 +258,7 @@ func (s *Service) Delete(id string) error {
 	user.UpdatedAt = time.Now()
 	user.Version++
 
-	if err := s.storage.Set(user); err != nil {
+	if err := s.storage.SetUser(user); err != nil {
 		s.logger.Error("failed to set user as deleted", zap.Error(err), zap.String("id", id))
 		return err
 	}
