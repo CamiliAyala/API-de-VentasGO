@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"parte3/api"
+	"users-api/api"
 
 	"github.com/gin-gonic/gin"
 )

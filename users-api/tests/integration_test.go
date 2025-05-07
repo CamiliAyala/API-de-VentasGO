@@ -3,13 +3,14 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/gin-gonic/gin"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"net/http/httptest"
-	"parte3/api"
-	"parte3/internal/user"
 	"testing"
+	"users-api/api"
+	"users-api/internal/user"
+
+	"github.com/gin-gonic/gin"
+	"github.com/stretchr/testify/require"
 )
 
 func TestIntegrationCreateAndGet(t *testing.T) {

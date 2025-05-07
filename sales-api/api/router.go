@@ -2,7 +2,7 @@ package api
 
 import (
 	"net/http"
-	"parte3/internal/user"
+	"sales-api/internal/sale"
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
@@ -15,21 +15,17 @@ func InitRoutes(e *gin.Engine) {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
-	storage := user.NewLocalStorage()
-	service := user.NewService(storage, logger)
+	storage := sale.NewLocalStorage()
+	saleService := sale.NewService(storage, logger)
 
 	h := handler{
-		userService: service,
+		saleService: saleService,
 		logger:      logger,
 	}
 
-	e.POST("/users", h.handleCreate)
 	e.POST("/sales", h.handleCreateSale)
-	e.GET("/users/:id", h.handleRead)
 	e.GET("/sales", h.handleReadSale)
-	e.PATCH("/users/:id", h.handleUpdate)
 	e.PATCH("/sales/:id", h.handleUpdateSale)
-	e.DELETE("/users/:id", h.handleDelete)
 
 	e.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
