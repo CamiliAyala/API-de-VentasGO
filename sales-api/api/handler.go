@@ -4,7 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"sales-api/internal/sale"
-	"users-api/internal/user"
+
+	"github.com/go-resty/resty/v2"
 
 	"go.uber.org/zap"
 
@@ -14,7 +15,6 @@ import (
 // handler holds the user service and implements HTTP handlers for user CRUD.
 type handler struct {
 	saleService *sale.Service
-	userService *user.Service
 	logger      *zap.Logger
 }
 
@@ -28,8 +28,22 @@ func (h *handler) handleCreateSale(ctx *gin.Context) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	if _, err := h.userService.GetUser(req.UserID); err == sale.ErrNotFound {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+	//validamos al usuario (utilizamos users-api)
+	userID := req.UserID
+	client := resty.New()
+
+	res, err := client.R().EnableTrace().Get("http://localhost:8080/users/" + userID)
+
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Error en la consulta de usuario"})
+		h.logger.Error("error trying to get user", zap.Error(err))
+		return
+	}
+
+	if res.IsError() {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Usuario no encontrado"})
+		h.logger.Warn("user not found", zap.String("id", userID))
 		return
 	}
 
@@ -37,7 +51,10 @@ func (h *handler) handleCreateSale(ctx *gin.Context) {
 		UserID: req.UserID,
 		Amount: req.Amount,
 	}
-	if err := h.saleService.CreateSale(u); err != nil {
+	if err := h.saleService.CreateSale(u); err == sale.ErrInvalidInput {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	} else if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

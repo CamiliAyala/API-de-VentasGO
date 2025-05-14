@@ -43,16 +43,10 @@ func NewService(storage Storage, logger *zap.Logger) *Service {
 
 // CreateSale creates a new sale in the system.
 func (s *Service) CreateSale(sale *Sale) error {
-	u, _ := s.GetUser(sale.UserID)
-	if u == nil {
-		return ErrSaleNotFound
-	}
 	if sale.Amount <= 0.0 {
 		return ErrInvalidInput
 	}
-
 	sale.ID = uuid.NewString()
-	sale.UserID = u.ID
 	statuses := []string{"pending", "approved", "rejected"}
 	sale.Status = statuses[rand.Intn(len(statuses))]
 	now := time.Now()
