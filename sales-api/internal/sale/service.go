@@ -3,7 +3,6 @@ package sale
 import (
 	"errors"
 	"math/rand"
-	"regexp"
 	"time"
 
 	"github.com/google/uuid"
@@ -11,7 +10,6 @@ import (
 )
 
 var (
-	letterRegex           = regexp.MustCompile(`^[A-Za-z]+$`)
 	ErrInvalidInput       = errors.New("invalid input")
 	ErrNoFieldsToUpdate   = errors.New("no fields to update")
 	ErrUserNotFound       = errors.New("user not found")

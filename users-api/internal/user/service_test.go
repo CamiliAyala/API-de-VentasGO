@@ -1,6 +1,5 @@
 package user
 
-/*
 import (
 	"errors"
 	"testing"
@@ -17,14 +16,15 @@ func TestService_Create_Simple(t *testing.T) {
 		NickName: "Chiche",
 	}
 
-	require.Nil(t, err) //valida que el error sea nil
-	require.NotEmpty(t, input.ID) //para validar que el ID no sea vacío
+	var err error
+	require.Nil(t, err)                  //valida que el error sea nil
+	require.NotEmpty(t, input.ID)        //para validar que el ID no sea vacío
 	require.NotEmpty(t, input.CreatedAt) //valida que la fecha de creación no sea vacía
 	require.NotEmpty(t, input.UpdatedAt) //valida que la fecha de actualización no sea vacía
-	require.Equal(t, 1, input.Version)//valida que la versión sea 1
+	require.Equal(t, 1, input.Version)   //valida que la versión sea 1
 
 	s = NewService(&mockStorage{
-		mockSet: func(user *User) error {
+		mockSetUser: func(user *User) error {
 			return errors.New("fake error trying to set user")
 		},
 	}, nil)
@@ -54,8 +54,8 @@ func TestService_Create(t *testing.T) {
 			name: "error",
 			fields: fields{
 				storage: &mockStorage{
-						mockSet: func(user *User) error {
-						return errors.New("fake error trying to set user")
+					mockSetUser: func(user *User) error {
+						return errors.New("invalid input")
 					},
 				},
 			},
@@ -64,7 +64,7 @@ func TestService_Create(t *testing.T) {
 			},
 			wantErr: func(t *testing.T, err error) {
 				require.NotNil(t, err)
-				require.EqualError(t, err, "fake error trying to set user")
+				require.EqualError(t, err, "invalid input")
 			},
 			wantUser: nil,
 		},
@@ -110,39 +110,19 @@ func TestService_Create(t *testing.T) {
 }
 
 type mockStorage struct {
-	mockSet        func(user *User) error
-	mockRead       func(id string) (*User, error)
-	mockDelete     func(id string) error
-	mockReadAllSales func() ([]*User, error)
+	mockSetUser  func(user *User) error
+	mockReadUser func(id string) (*User, error)
+	mockDelete   func(id string) error
 }
 
-func (m *mockStorage) ReadAllSales() (map[string]*Sale, error) {
-	if m.mockReadAllSales != nil {
-		users, err := m.mockReadAllSales()
-		if err != nil {
-			return nil, err
-		}
-		sales := make(map[string]*Sale)
-		for _, user := range users {
-			sales[user.ID] = &Sale{
-				ID:        user.ID,
-				CreatedAt: user.CreatedAt,
-				UpdatedAt: user.UpdatedAt,
-			}
-		}
-		return sales, nil
-	}
-	return nil, nil
+func (m *mockStorage) SetUser(user *User) error {
+	return m.mockSetUser(user)
 }
 
-func (m *mockStorage) Set(user *User) error {
-	return m.mockSet(user)
-}
-
-func (m *mockStorage) Read(id string) (*User, error) {
-	return m.mockRead(id)
+func (m *mockStorage) ReadUser(id string) (*User, error) {
+	return m.mockReadUser(id)
 }
 
 func (m *mockStorage) Delete(id string) error {
 	return m.mockDelete(id)
-}*/
+}

@@ -43,7 +43,7 @@ func NewService(storage Storage, logger *zap.Logger) *Service {
 // Create de Usuario
 func (s *Service) CreateUser(user *User) error {
 
-	if user.Name == "" || user.Address == "" {
+	if user.Name == "" || user.Address == "" || user.NickName == "" {
 		return ErrInvalidInput
 	}
 	if !letterRegex.MatchString(user.Name) {

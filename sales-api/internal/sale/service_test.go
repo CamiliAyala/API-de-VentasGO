@@ -1,6 +1,5 @@
 package sale
 
-/*
 import (
 	"errors"
 	"testing"
@@ -11,27 +10,27 @@ import (
 func TestService_Create_Simple(t *testing.T) {
 	s := NewService(NewLocalStorage(), nil)
 
-	input := &User{
-		Name:     "Ayrton",
-		Address:  "Pringles",
-		NickName: "Chiche",
+	input := &Sale{
+		UserID: "1",
+		Amount: 100.0,
 	}
 
-	require.Nil(t, err) //valida que el error sea nil
-	require.NotEmpty(t, input.ID) //para validar que el ID no sea vacío
+	var err error
+	require.Nil(t, err)                  //valida que el error sea nil
+	require.NotEmpty(t, input.ID)        //para validar que el ID no sea vacío
 	require.NotEmpty(t, input.CreatedAt) //valida que la fecha de creación no sea vacía
 	require.NotEmpty(t, input.UpdatedAt) //valida que la fecha de actualización no sea vacía
-	require.Equal(t, 1, input.Version)//valida que la versión sea 1
+	require.Equal(t, 1, input.Version)   //valida que la versión sea 1
 
 	s = NewService(&mockStorage{
-		mockSet: func(user *User) error {
-			return errors.New("fake error trying to set user")
+		mockSetSale: func(sale *Sale) error {
+			return errors.New("fake error trying to set sale")
 		},
 	}, nil)
 
-	err = s.CreateUser(input)
+	err = s.CreateSale(input)
 	require.NotNil(t, err)
-	require.EqualError(t, err, "fake error trying to set user")
+	require.EqualError(t, err, "fake error trying to set sale")
 }
 
 func TestService_Create(t *testing.T) {
@@ -40,7 +39,7 @@ func TestService_Create(t *testing.T) {
 	}
 
 	type args struct {
-		user *User
+		sale *Sale
 	}
 
 	tests := []struct {
@@ -48,25 +47,25 @@ func TestService_Create(t *testing.T) {
 		fields   fields
 		args     args
 		wantErr  func(t *testing.T, err error)
-		wantUser func(t *testing.T, user *User)
+		wantSale func(t *testing.T, sale *Sale)
 	}{
 		{
 			name: "error",
 			fields: fields{
 				storage: &mockStorage{
-						mockSet: func(user *User) error {
-						return errors.New("fake error trying to set user")
+					mockSetSale: func(sale *Sale) error {
+						return errors.New("fake error trying to set sale")
 					},
 				},
 			},
 			args: args{
-				user: &User{},
+				sale: &Sale{},
 			},
 			wantErr: func(t *testing.T, err error) {
 				require.NotNil(t, err)
-				require.EqualError(t, err, "fake error trying to set user")
+				require.EqualError(t, err, "fake error trying to set sale")
 			},
-			wantUser: nil,
+			wantSale: nil,
 		},
 		{
 			name: "success",
@@ -74,16 +73,15 @@ func TestService_Create(t *testing.T) {
 				storage: NewLocalStorage(),
 			},
 			args: args{
-				user: &User{
-					Name:     "Ayrton",
-					Address:  "Pringles",
-					NickName: "Chiche",
+				sale: &Sale{
+					UserID: "1",
+					Amount: 100.0,
 				},
 			},
 			wantErr: func(t *testing.T, err error) {
 				require.Nil(t, err)
 			},
-			wantUser: func(t *testing.T, input *User) {
+			wantSale: func(t *testing.T, input *Sale) {
 				require.NotEmpty(t, input.ID)
 				require.NotEmpty(t, input.CreatedAt)
 				require.NotEmpty(t, input.UpdatedAt)
@@ -97,52 +95,32 @@ func TestService_Create(t *testing.T) {
 				storage: tt.fields.storage,
 			}
 
-			err := s.CreateUser(tt.args.user)
+			err := s.CreateSale(tt.args.sale)
 			if tt.wantErr != nil {
 				tt.wantErr(t, err)
 			}
 
-			if tt.wantUser != nil {
-				tt.wantUser(t, tt.args.user)
+			if tt.wantSale != nil {
+				tt.wantSale(t, tt.args.sale)
 			}
 		})
 	}
 }
 
 type mockStorage struct {
-	mockSet        func(user *User) error
-	mockRead       func(id string) (*User, error)
-	mockDelete     func(id string) error
-	mockReadAllSales func() ([]*User, error)
+	mockSetSale      func(sale *Sale) error
+	mockReadSale     func(id string) (*Sale, error)
+	mockReadAllSales func() (map[string]*Sale, error)
+}
+
+func (m *mockStorage) SetSale(sale *Sale) error {
+	return m.mockSetSale(sale)
+}
+
+func (m *mockStorage) ReadSale(id string) (*Sale, error) {
+	return m.mockReadSale(id)
 }
 
 func (m *mockStorage) ReadAllSales() (map[string]*Sale, error) {
-	if m.mockReadAllSales != nil {
-		users, err := m.mockReadAllSales()
-		if err != nil {
-			return nil, err
-		}
-		sales := make(map[string]*Sale)
-		for _, user := range users {
-			sales[user.ID] = &Sale{
-				ID:        user.ID,
-				CreatedAt: user.CreatedAt,
-				UpdatedAt: user.UpdatedAt,
-			}
-		}
-		return sales, nil
-	}
-	return nil, nil
+	return m.mockReadAllSales()
 }
-
-func (m *mockStorage) Set(user *User) error {
-	return m.mockSet(user)
-}
-
-func (m *mockStorage) Read(id string) (*User, error) {
-	return m.mockRead(id)
-}
-
-func (m *mockStorage) Delete(id string) error {
-	return m.mockDelete(id)
-}*/
