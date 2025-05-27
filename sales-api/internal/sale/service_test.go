@@ -61,10 +61,18 @@ func TestService_Create(t *testing.T) {
 	}
 
 	mockHandler := http.NewServeMux()
+
+	// Usuario válido
 	mockHandler.HandleFunc("/users/1234", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"id":"1234"}`)) // JSON válido
+		w.Write([]byte(`{"id":"1234"}`))
 	})
+
+	// Usuario inexistente
+	mockHandler.HandleFunc("/users/9999", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	})
+
 	mockServer := httptest.NewServer(mockHandler)
 	defer mockServer.Close()
 
@@ -76,7 +84,7 @@ func TestService_Create(t *testing.T) {
 		wantSale func(t *testing.T, sale *Sale)
 	}{
 		{
-			name: "error",
+			name: "error set sale",
 			fields: fields{
 				storage: &mockStorage{
 					mockSetSale: func(sale *Sale) error {
@@ -131,6 +139,24 @@ func TestService_Create(t *testing.T) {
 			wantErr: func(t *testing.T, err error) {
 				require.NotNil(t, err)
 				require.Equal(t, ErrInvalidInput, err)
+			},
+			wantSale: nil,
+		},
+		{
+			name: "non-existent user",
+			fields: fields{
+				storage: NewLocalStorage(),
+				apiURL:  mockServer.URL,
+			},
+			args: args{
+				sale: &Sale{
+					UserID: "9999",
+					Amount: 100.0,
+				},
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.NotNil(t, err)
+				require.Equal(t, ErrUserNotFound, err)
 			},
 			wantSale: nil,
 		},
