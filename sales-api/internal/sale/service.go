@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"time"
 
+	"github.com/go-resty/resty/v2"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
@@ -15,27 +16,31 @@ var (
 	ErrUserNotFound       = errors.New("user not found")
 	ErrSaleNotFound       = errors.New("sale not found")
 	ErrTransactionInvalid = errors.New("transaccion invalida")
+	ErrNotUserFound       = errors.New("not user found")
+	ErrTryingToGetUser    = errors.New("error trying to get user")
 )
 
 // Service provides high-level user management operations on a LocalStorage backend.
 type Service struct {
-	// storage is the underlying persistence for User entities.
-	storage Storage
-
-	// logger is our observability component to log.
-	logger *zap.Logger
+	storage    Storage
+	logger     *zap.Logger
+	userClient *resty.Client
+	urlUser    string
 }
 
 // NewService creates a new Service.
-func NewService(storage Storage, logger *zap.Logger) *Service {
+func NewService(storage Storage, logger *zap.Logger, urlUser string) *Service {
 	if logger == nil {
 		logger, _ = zap.NewProduction()
 		defer logger.Sync() // flushes buffer, if any
 	}
+	restyClient := resty.New()
 
 	return &Service{
-		storage: storage,
-		logger:  logger,
+		storage:    storage,
+		logger:     logger,
+		userClient: restyClient,
+		urlUser:    urlUser,
 	}
 }
 
@@ -45,12 +50,21 @@ func (s *Service) CreateSale(sale *Sale) error {
 		return ErrInvalidInput
 	}
 	sale.ID = uuid.NewString()
-	statuses := []string{"pending", "approved", "rejected"}
+	statuses := []string{"pending", "rejected"}
 	sale.Status = statuses[rand.Intn(len(statuses))]
 	now := time.Now()
 	sale.CreatedAt = now
 	sale.UpdatedAt = now
 	sale.Version = 1
+	userID := sale.UserID
+	res, err := s.userClient.R().Get(s.urlUser + "/users/" + userID)
+	if err != nil {
+		return ErrTryingToGetUser
+	}
+
+	if res.IsError() {
+		return ErrUserNotFound
+	}
 
 	if err := s.storage.SetSale(sale); err != nil {
 		s.logger.Error("failed to set sale", zap.Error(err), zap.Any("sale", sale))

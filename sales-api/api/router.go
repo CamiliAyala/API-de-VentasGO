@@ -11,12 +11,12 @@ import (
 // InitRoutes registers all user CRUD endpoints on the given Gin engine.
 // It initializes the storage, service, and handler, then binds each HTTP
 // method and path to the appropriate handler function.
-func InitRoutes(e *gin.Engine) {
+func InitRoutes(e *gin.Engine, userAPIURL string) {
 	logger, _ := zap.NewProduction()
 	defer logger.Sync()
 
 	storage := sale.NewLocalStorage()
-	saleService := sale.NewService(storage, logger)
+	saleService := sale.NewService(storage, logger, userAPIURL)
 
 	h := handler{
 		saleService: saleService,

@@ -16,7 +16,8 @@ func TestService_Create_Simple(t *testing.T) {
 		NickName: "Chiche",
 	}
 
-	var err error
+	err := s.CreateUser(input)
+
 	require.Nil(t, err)                  //valida que el error sea nil
 	require.NotEmpty(t, input.ID)        //para validar que el ID no sea vacío
 	require.NotEmpty(t, input.CreatedAt) //valida que la fecha de creación no sea vacía

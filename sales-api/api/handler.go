@@ -5,8 +5,6 @@ import (
 	"net/http"
 	"sales-api/internal/sale"
 
-	"github.com/go-resty/resty/v2"
-
 	"go.uber.org/zap"
 
 	"github.com/gin-gonic/gin"
@@ -29,32 +27,20 @@ func (h *handler) handleCreateSale(ctx *gin.Context) {
 		return
 	}
 
-	//validamos al usuario (utilizamos users-api)
-	userID := req.UserID
-	client := resty.New()
-
-	res, err := client.R().EnableTrace().Get("http://localhost:8080/users/" + userID)
-
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": "Error en la consulta de usuario"})
-		h.logger.Error("error trying to get user", zap.Error(err))
-		return
-	}
-
-	if res.IsError() {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": "Usuario no encontrado"})
-		h.logger.Warn("user not found", zap.String("id", userID))
-		return
-	}
-
 	u := &sale.Sale{
 		UserID: req.UserID,
 		Amount: req.Amount,
 	}
-	if err := h.saleService.CreateSale(u); err == sale.ErrInvalidInput {
-		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
-	} else if err != nil {
+	err := h.saleService.CreateSale(u)
+
+	if err != nil {
+		if errors.Is(err, sale.ErrInvalidInput) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		} else if errors.Is(err, sale.ErrNotUserFound) {
+			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}

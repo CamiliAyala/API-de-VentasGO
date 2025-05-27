@@ -3,6 +3,7 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sales-api/api"
@@ -14,8 +15,18 @@ import (
 )
 
 func TestIntegrationCreateAndGet(t *testing.T) {
+	mockHandler := http.NewServeMux()
+
+	mockHandler.HandleFunc("/users/1234", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`1234`))
+	})
+
+	mockServer := httptest.NewServer(mockHandler)
+	defer mockServer.Close()
+
 	app := gin.Default()
-	api.InitRoutes(app)
+	api.InitRoutes(app, mockServer.URL)
 
 	req, _ := http.NewRequest(http.MethodGet, "/ping", nil)
 	res := fakeRequest(app, req)
@@ -24,20 +35,21 @@ func TestIntegrationCreateAndGet(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.Code)
 	require.Contains(t, res.Body.String(), "pong")
 
-	req, _ = http.NewRequest(http.MethodPost, "/sales", bytes.NewBufferString(`{
-		"user_id":"1",
+	req, _ = http.NewRequest(http.MethodPost, "/sales", bytes.NewBufferString(fmt.Sprintf(`{
+		"user_id": "1234",
 		"amount": 100.0	
-	}`))
+	}`)))
 
 	res = fakeRequest(app, req)
-
+	var amount1 float32
+	amount1 = 100.0
 	require.NotNil(t, res)
 	require.Equal(t, http.StatusCreated, res.Code)
 
 	var resSale *sale.Sale
 	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &resSale))
-	require.Equal(t, "1", resSale.UserID) //no sabemos q ID es el correcto cuando ejecuta
-	require.Equal(t, 100.0, resSale.Amount)
+	require.Equal(t, "1234", resSale.UserID)
+	require.Equal(t, amount1, resSale.Amount)
 	require.Equal(t, 1, resSale.Version)
 	require.NotEmpty(t, resSale.Status)
 	require.NotEmpty(t, resSale.ID)
