@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -146,6 +147,140 @@ func TestService_Create(t *testing.T) {
 			}
 			if tt.wantSale != nil {
 				tt.wantSale(t, tt.args.sale)
+			}
+		})
+	}
+}
+
+func TestService_UpdateSale(t *testing.T) {
+	type fields struct {
+		storage Storage
+	}
+
+	type args struct {
+		id      string
+		updates *UpdateFieldsSale
+	}
+
+	tests := []struct {
+		name      string
+		fields    fields
+		setupData func(storage Storage) string // para inicializar una venta y devolver su ID
+		args      func(saleID string) args
+		wantErr   func(t *testing.T, err error)
+		wantSale  func(t *testing.T, sale *Sale)
+	}{
+		{
+			name: "sale not found",
+			fields: fields{
+				storage: NewLocalStorage(),
+			},
+			setupData: func(_ Storage) string { return "no existe id" },
+			args: func(id string) args {
+				return args{id: id, updates: &UpdateFieldsSale{Status: "approved"}}
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.NotNil(t, err)
+				require.Equal(t, ErrSaleNotFound, err)
+			},
+			wantSale: nil,
+		},
+		{
+			name: "invalid status update",
+			fields: fields{
+				storage: NewLocalStorage(),
+			},
+			setupData: func(storage Storage) string {
+				sale := &Sale{ID: "123", UserID: "1234", Amount: 100, Status: "pending"}
+				_ = storage.SetSale(sale)
+				return sale.ID
+			},
+			args: func(id string) args {
+				return args{id: id, updates: &UpdateFieldsSale{Status: "invalid"}}
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.NotNil(t, err)
+				require.Equal(t, ErrInvalidInput, err)
+			},
+			wantSale: nil,
+		},
+		{
+			name: "invalid transaction - status not pending",
+			fields: fields{
+				storage: NewLocalStorage(),
+			},
+			setupData: func(storage Storage) string {
+				sale := &Sale{ID: "456", UserID: "1234", Amount: 100, Status: "approved"}
+				_ = storage.SetSale(sale)
+				return sale.ID
+			},
+			args: func(id string) args {
+				return args{id: id, updates: &UpdateFieldsSale{Status: "rejected"}}
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.NotNil(t, err)
+				require.Equal(t, ErrTransactionInvalid, err)
+			},
+			wantSale: nil,
+		},
+		{
+			name: "success",
+			fields: fields{
+				storage: NewLocalStorage(),
+			},
+			setupData: func(storage Storage) string {
+				sale := &Sale{ID: "789", UserID: "1234", Amount: 100, Status: "pending", Version: 1}
+				_ = storage.SetSale(sale)
+				return sale.ID
+			},
+			args: func(id string) args {
+				return args{id: id, updates: &UpdateFieldsSale{Status: "approved"}}
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.Nil(t, err)
+			},
+			wantSale: func(t *testing.T, sale *Sale) {
+				require.Equal(t, "approved", sale.Status)
+				require.Equal(t, 2, sale.Version)
+				require.WithinDuration(t, time.Now(), sale.UpdatedAt, time.Second)
+			},
+		},
+		{
+			name: "error saving updated sale",
+			fields: fields{
+				storage: &mockStorage{
+					mockReadSale: func(id string) (*Sale, error) {
+						return &Sale{ID: id, Status: "pending", Version: 1}, nil
+					},
+					mockSetSale: func(sale *Sale) error {
+						return errors.New("failed to save")
+					},
+				},
+			},
+			setupData: func(_ Storage) string { return "mock-id" },
+			args: func(id string) args {
+				return args{id: id, updates: &UpdateFieldsSale{Status: "approved"}}
+			},
+			wantErr: func(t *testing.T, err error) {
+				require.NotNil(t, err)
+				require.EqualError(t, err, "failed to save")
+			},
+			wantSale: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			saleID := tt.setupData(tt.fields.storage)
+			service := NewService(tt.fields.storage, nil, "")
+
+			result, err := service.UpdateSale(tt.args(saleID).id, tt.args(saleID).updates)
+
+			if tt.wantErr != nil {
+				tt.wantErr(t, err)
+			}
+			if tt.wantSale != nil {
+				tt.wantSale(t, result)
 			}
 		})
 	}
