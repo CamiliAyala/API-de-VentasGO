@@ -3,7 +3,6 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sales-api/api"
@@ -38,14 +37,13 @@ func TestIntegrationCreateAndPatchAndGet(t *testing.T) {
 
 	//flujo completo de POST → PATCH → GET en el happy path.
 
-	req, _ = http.NewRequest(http.MethodPost, "/sales", bytes.NewBufferString(fmt.Sprintf(`{
+	req, _ = http.NewRequest(http.MethodPost, "/sales", bytes.NewBufferString(`{
 		"user_id": "1234",
 		"amount": 100.0	
-	}`)))
+	}`))
 
 	res = fakeRequest(app, req)
-	var amount1 float32
-	amount1 = 100.0
+	var amount1 float32 = 100.0
 	require.NotNil(t, res)
 	require.Equal(t, http.StatusCreated, res.Code)
 
@@ -60,9 +58,9 @@ func TestIntegrationCreateAndPatchAndGet(t *testing.T) {
 	require.NotEmpty(t, resSale.UpdatedAt)
 
 	statusActual := resSale.Status
-	req, _ = http.NewRequest(http.MethodPatch, "/sales/"+resSale.ID, bytes.NewBufferString(fmt.Sprintf(`{
-  		"status":"approved"
-	}`)))
+	req, _ = http.NewRequest(http.MethodPatch, "/sales/"+resSale.ID, bytes.NewBufferString(`{
+		"status":"approved"
+	}`))
 	res = fakeRequest(app, req)
 
 	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &resSale))
