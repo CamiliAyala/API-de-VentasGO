@@ -9,12 +9,13 @@ import (
 	"sales-api/api"
 	"sales-api/internal/sale"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
-func TestIntegrationCreateAndGet(t *testing.T) {
+func TestIntegrationCreateAndPatchAndGet(t *testing.T) {
 	mockHandler := http.NewServeMux()
 
 	mockHandler.HandleFunc("/users/1234", func(w http.ResponseWriter, r *http.Request) {
@@ -34,6 +35,8 @@ func TestIntegrationCreateAndGet(t *testing.T) {
 	require.NotNil(t, res)
 	require.Equal(t, http.StatusOK, res.Code)
 	require.Contains(t, res.Body.String(), "pong")
+
+	//flujo completo de POST → PATCH → GET en el happy path.
 
 	req, _ = http.NewRequest(http.MethodPost, "/sales", bytes.NewBufferString(fmt.Sprintf(`{
 		"user_id": "1234",
@@ -55,6 +58,26 @@ func TestIntegrationCreateAndGet(t *testing.T) {
 	require.NotEmpty(t, resSale.ID)
 	require.NotEmpty(t, resSale.CreatedAt)
 	require.NotEmpty(t, resSale.UpdatedAt)
+
+	statusActual := resSale.Status
+	req, _ = http.NewRequest(http.MethodPatch, "/sales/"+resSale.ID, bytes.NewBufferString(fmt.Sprintf(`{
+  		"status":"approved"
+	}`)))
+	res = fakeRequest(app, req)
+
+	require.NoError(t, json.Unmarshal(res.Body.Bytes(), &resSale))
+
+	if statusActual == "pending" {
+		require.NotNil(t, res)
+		require.Equal(t, "approved", resSale.Status)
+		require.Equal(t, 2, resSale.Version)
+		require.WithinDuration(t, time.Now(), resSale.UpdatedAt, time.Second)
+		require.Equal(t, http.StatusOK, res.Code)
+	} else {
+		require.NotNil(t, res)
+		require.Equal(t, http.StatusConflict, res.Code)
+		require.Contains(t, res.Body.String(), "transaccion invalida")
+	}
 
 	req, _ = http.NewRequest(http.MethodGet, "/sales?user_id="+resSale.UserID, nil)
 
