@@ -59,7 +59,6 @@ func (h *handler) handleReadSale(ctx *gin.Context) {
 			ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-
 		h.logger.Error("error trying to get sale", zap.Error(err))
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

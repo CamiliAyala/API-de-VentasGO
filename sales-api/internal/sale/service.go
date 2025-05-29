@@ -15,7 +15,7 @@ var (
 	ErrNoFieldsToUpdate   = errors.New("no fields to update")
 	ErrUserNotFound       = errors.New("user not found")
 	ErrSaleNotFound       = errors.New("sale not found")
-	ErrTransactionInvalid = errors.New("transaccion invalida")
+	ErrTransactionInvalid = errors.New("transicion invalida")
 	ErrNotUserFound       = errors.New("not user found")
 	ErrTryingToGetUser    = errors.New("error trying to get user")
 )
@@ -93,10 +93,7 @@ func (s *Service) GetSaleByUserAndStatus(userID string, status string) (informe,
 		return resp, ErrInvalidInput
 	}
 
-	salesMap, err := s.storage.ReadAllSales()
-	if err != nil {
-		return resp, err
-	}
+	salesMap, _ := s.storage.ReadAllSales()
 
 	var filteredSales []Sale
 	for _, sale := range salesMap {
@@ -120,9 +117,12 @@ func (s *Service) GetSaleByUserAndStatus(userID string, status string) (informe,
 		}
 		meta.TotalAmount += sale.Amount
 	}
-
 	resp.Metadata = meta
-	resp.Results = filteredSales
+	if len(filteredSales) == 0 {
+		resp.Results = []Sale{}
+	} else {
+		resp.Results = filteredSales
+	}
 	return resp, nil
 }
 
@@ -146,7 +146,12 @@ func (s *Service) UpdateSale(id string, updates *UpdateFieldsSale) (*Sale, error
 			return nil, ErrInvalidInput
 		}
 	} else {
-		return nil, ErrTransactionInvalid
+		if updates.Status == "rejected" || updates.Status == "approved" {
+			return nil, ErrTransactionInvalid
+		} else {
+			return nil, ErrInvalidInput
+		}
+
 	}
 
 	// Si no se modificó nada, lanzar error 400
